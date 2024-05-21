@@ -1,0 +1,25 @@
+# R-type instructions
+add $t0, $t1, $t2       # $t0 = $t1 + $t2
+sub $t0, $t1, $t2       # $t0 = $t1 - $t2
+and $t0, $t1, $t2       # $t0 = $t1 & $t2
+or $t0, $t1, $t2        # $t0 = $t1 | $t2
+nand $t0, $t1, $t2      # $t0 = ~($t1 & $t2)
+xor $t0, $t1, $t2       # $t0 = $t1 ^ $t2
+slt $t0, $t1, $t2       # $t0 = ($t1 < $t2) ? 1 : 0
+
+# Custom R-type instructions
+brv $t1                 # Custom operation: brv, funct=20
+jmxor $t1, $t2          # Custom operation: jmxor, funct=34
+
+# I-type instructions
+lw $t0, 4($t1)          # Load word: $t0 = Memory[$t1 + 4]
+sw $t0, 4($t1)          # Store word: Memory[$t1 + 4] = $t0
+beq $t1, $t2, 100       # Branch if equal: if ($t1 == $t2) go to address 100
+
+# Custom I-type instructions
+nandi $t0, $t1, 100     # Custom operation: nandi, opcode=16, branch to address 100
+blezal $t1, 100         # Custom operation: blezal, opcode=36, branch to address 100
+jalpc $t0, 100          # Custom operation: jalpc, opcode=31, jump to address 100
+
+# J-type instructions
+balv 100                # Custom operation: balv, opcode=32, jump to address 100
