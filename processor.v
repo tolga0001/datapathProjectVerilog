@@ -16,6 +16,8 @@ adder2out,	//Output of adder which adds PC+4 and 2 shifted sign-extend result-ad
 sextad;	//Output of shift left 2 unit
 
 wire [5:0] inst31_26;	//31-26 bits of instruction
+wire [24:0]
+inst25_0; 
 wire [4:0] 
 inst25_21,	//25-21 bits of instruction
 inst20_16,	//20-16 bits of instruction
@@ -32,7 +34,7 @@ wire [2:0] gout;	//Output of ALU control unit
 wire zout,	//Zero output of ALU
 pcsrc,	//Output of AND gate with Branch and ZeroOut inputs
 //Control signals
-regdest,alusrc,memtoreg,regwrite,memread,memwrite,branch,aluop1,aluop0,jalpc;
+regdest,alusrc,memtoreg,regwrite,memread,memwrite,branch,aluop1,aluop0,brvsig,blezalsig,jalpcsig,nandisig,balvsig,jmxorsig;//TODO changed jalpc to jalpcsig here!!
 
 //32-size register file (32 bit(1 word) for each register)
 reg [31:0] registerfile[0:31];
@@ -46,10 +48,14 @@ always @(posedge clk)
 if (memwrite)
 begin 
 //sum stores address,datab stores the value to be written
-datmem[sum[4:0]+3]=datab[7:0];
-datmem[sum[4:0]+2]=datab[15:8];
-datmem[sum[4:0]+1]=datab[23:16];
-datmem[sum[4:0]]=datab[31:24];
+//datmem[sum[4:0]+3]=datab[7:0];
+//datmem[sum[4:0]+2]=datab[15:8];
+//datmem[sum[4:0]+1]=datab[23:16];
+//datmem[sum[4:0]]=datab[31:24];
+datmem[outjmxoraddress[4:0]+3]=datab[7:0];
+datmem[outjmxoraddress[4:0]+2]=datab[15:8];
+datmem[outjmxoraddress[4:0]+1]=datab[23:16];
+datmem[outjmxoraddress[4:0]]=datab[31:24];
 end
 
 //instruction memory
@@ -60,14 +66,18 @@ end
  assign inst20_16=instruc[20:16];
  assign inst15_11=instruc[15:11];
  assign inst15_0=instruc[15:0];
+ assign inst25_0=instruc[25:0];
 
 
 // registers
 
 assign dataa=registerfile[inst25_21];//Read register 1
 assign datab=registerfile[inst20_16];//Read register 2
+assign blezaland=blezalsig&(dataa<=0 ? 1:0) //added blezaland here Toprak
+assign jmxorxor=dataa^datab //added jmxorxor here Toprak, TODO check if ^ is xor
 always @(posedge clk)
- registerfile[out1]= regwrite ? out3:registerfile[out1];//Write data to register
+ //registerfile[out1]= regwrite ? out3:registerfile[out1];//Write data to register
+ registerfile[outbalvregdst]= regwrite ? outnandimux:registerfile[outbalvregdst];//Write data to register
 
 //read data from memory, sum stores address
 assign dpack={datmem[sum[5:0]],datmem[sum[5:0]+1],datmem[sum[5:0]+2],datmem[sum[5:0]+3]};
@@ -76,8 +86,11 @@ assign dpack={datmem[sum[5:0]],datmem[sum[5:0]+1],datmem[sum[5:0]+2],datmem[sum[
 //mux with RegDst control
 mult2_to_1_5  mult1(out1, instruc[20:16],instruc[15:11],regdest);
 
-// mux with control balv_sig (for selecting 31. reg as destination) added by Tolga
-mul2_to_1_32 mult2();
+// mux with control jmxorsig (for selecting 31. reg as destination) added by Toprak output not yet connected!!
+mul2_to_1_5 jmxorregdst(outjmxorregdst, out1, 5'b11111, jmxorsig);
+
+// mux with control balvsig (for selecting 31. reg as destination) added by Toprak output not yet connected!!
+mul2_to_1_5 balvregdst(outbalvregdst, outjmxorregdst, 5'b11111, balvsig);
 
 //mux with ALUSrc control
 mult2_to_1_32 mult3(out2, datab,extad,alusrc);
@@ -85,30 +98,42 @@ mult2_to_1_32 mult3(out2, datab,extad,alusrc);
 //mux with MemToReg control 
 mult2_to_1_32 mult4(out3, sum,dpack,memtoreg);
 
-//mux with(blezal&&R[rs]<=0)
-mul2_to_1_32 mult5(); // it will be implemented for blezal 
+//mux with (Branch&ALUZero) control will not be used anymore
+mult2_to_1_32 mult6 (out4, adder1out,adder2out,pcsrc);
 
-//mux with (Branch&ALUZero) control
-mult2_to_1_32 mult6(out4, adder1out,adder2out,pcsrc);
-// mux with (jalpc) control added by Tolga
-mul2_to_1_32 mult7(out5,out4,adder1out,jalpc);
+// mux with select nandi
+mul2_to_1_32 nandimux(outnandimux, todo, (~(//TODOzeroextendoutputhere&dataa)), nandisig) 
+
+// mux with (blezalmux) control added by Toprak
+mul2_to_1_32 blezalmux (outblezalmux, adder1out, adder2out, (blezaland|pcsrc));
+
 // mux with (balv) control added by Tolga
-mul2_to_1_32 mult8 (); // it will be implemented for balv
+mul2_to_1_32 balvmux (outbalvmux, outblezalmux, shiftedjump, (status[0]&balvsig)); // it will be implemented for balv
 
 // mux with (Brv) control added by Tolga
-mul2_to_1_32 mult9 (); // it will implemented for brv 
+mul2_to_1_32 brvmux (outbrvmux, outbalvmux, sum, (brvsig&status[0])); 
 
-// mux with select nandi // added by Tolga TODO:It will be implemented
-mul2_to_1_32 mul10() // it will be added for selecting zeroextend nandi according to nandi signal 
+// mux with (jalpc) control added by Tolga
+mul2_to_1_32 jalpcmux (outjalpcmux, outbrvmux, adder1out, jalpcsig);//changed jalpc to jalpcsig 
+
+// mux with control (jmxormux)
+mul2_to_1_32 jmxormux (jmxorout, outjalpcmux, dpack, jmxorsig);
+
+// mux with control (alu result and address connected by jmxorsig) added by Toprak
+mul2_to_1_32 jmxoraddressmux(outjmxoraddress, sum, jmxorxor, jmxorsig);
+
+// mux with control (jmxor, jalpc,(balvsig&status[0]) selecting data to be written)
+mul2_to_1_32 combineddatawritemux(outcombinedmux, out3, adder1out, (jmxorsig|jalpcsig|(balvsig&status[0]));
 
 // load pc
 always @(negedge clk)
-pc=out4;
+//pc=out4;
+pc=outblezalmux;
 
 // alu, adder and control logic connections
 
 //ALU unit
-alu32 alu1(sum,dataa,out2,zout,gout);
+alu32 alu1(sum,dataa,out2,zout,gout,status);//status added here toprak
 
 //adder which adds PC and 4
 adder add1(pc,32'h4,adder1out);
@@ -128,6 +153,8 @@ alucont acont(aluop1,aluop0,instruc[3],instruc[2], instruc[1], instruc[0] ,gout)
 
 //Shift-left 2 unit
 shift shift2(sextad,extad);
+
+shift shift2jump(shiftedjump,inst25_0);//TODO check bit if 28 bits or not!!!
 
 //AND gate
 assign pcsrc=(branch && zout) || jalpc; // added by Tolga
