@@ -83,9 +83,6 @@ module alu32_tb;
         gin = 3'b010;
         #10;
 
-        // Add more test cases as needed
-        // ...
-
         // Terminate simulation
         $finish;
     end
