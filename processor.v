@@ -119,7 +119,8 @@ assign datab=registerfile[inst20_16];//Read register 2
 //assign jmxorxor=dataa^datab; //added jmxorxor here Toprak, TODO check if ^ is xor
 
 always @(posedge clk)
- registerfile[out1]= regwrite ? out3:registerfile[out1];//Write data to register
+ registerfile[out1]= regwrite ? outcombinedmux:registerfile[out1];//Write data to register
+ //registerfile[out1]= regwrite ? out3:registerfile[out1];//Write data to register
  //registerfile[outbalvregdst]= regwrite ? outnandimux:registerfile[outbalvregdst];//Write data to register depending on our muxes
 
 //read data from memory, sum stores address
@@ -166,7 +167,8 @@ mult2_to_1_32 blezalmux (outblezalmux, adder1out, adder2out, (blezaland|pcsrc));
 //mult2_to_1_32 jmxoraddressmux(outjmxoraddress, sum, jmxorxor, jmxorsig);
 
 // mux with control (jmxor, jalpc,(balvsig&status[0]) selecting data to be written)
-//mult2_to_1_32 combineddatawritemux(outcombinedmux, out3, adder1out, (jmxorsig|jalpcsig|(balvsig&statusregister[0])));
+//mult2_to_1_32 combineddatawritemux(outcombinedmux, out3, adder1out, (blezaland|jmxorsig|jalpcsig|(balvsig&statusregister[0])));//do not forget blezaland here!!
+mult2_to_1_32 combineddatawritemux(outcombinedmux, out3, adder1out, blezaland);
 
 // load pc
 always @(negedge clk)
