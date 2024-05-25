@@ -1,14 +1,24 @@
+
+
+`include "mult2_to_1_5.v"
+`include "mult2_to_1_32.v"
+`include "alu32.v"
+`include "adder.v"
+`include "control.v"
+`include "signext.v"
+`include "alucont.v"
+`include "shift.v"
+
 module processor;
 reg [31:0] pc; //32-bit prograom counter
 reg clk; //clock
-reg [7:0] datmem[0:31],mem2[0:31]; //32-size data and instruction memory (8 bit(1 byte) for each location)
+reg [7:0] datmem[0:31],mem[0:31]; //32-size data and instruction memory (8 bit(1 byte) for each location)
 wire [31:0] 
 dataa,	//Read data 1 output of Register File
 datab,	//Read data 2 output of Register File
 out2,		//Output of mux with ALUSrc control-mult2
 out3,		//Output of mux with MemToReg control-mult3
 out4,		//Output of mux with (Branch&ALUZero) control-mult4
-out5,       //Output of mux with jalpc control-mult5 Added by Tolga
 sum,		//ALU result
 extad,	//Output of sign-extend unit
 adder1out,	//Output of adder which adds PC and 4-add1
@@ -32,7 +42,7 @@ wire [2:0] gout;	//Output of ALU control unit
 wire zout,	//Zero output of ALU
 pcsrc,	//Output of AND gate with Branch and ZeroOut inputs
 //Control signals
-regdest,alusrc,memtoreg,regwrite,memread,memwrite,branch,aluop1,aluop0,jalpc;
+regdest,alusrc,memtoreg,regwrite,memread,memwrite,branch,aluop1,aluop0;
 
 //32-size register file (32 bit(1 word) for each register)
 reg [31:0] registerfile[0:31];
@@ -76,34 +86,20 @@ assign dpack={datmem[sum[5:0]],datmem[sum[5:0]+1],datmem[sum[5:0]+2],datmem[sum[
 //mux with RegDst control
 mult2_to_1_5  mult1(out1, instruc[20:16],instruc[15:11],regdest);
 
-// mux with control balv_sig (for selecting 31. reg as destination) added by Tolga
-mul2_to_1_32 mult2();
-
 //mux with ALUSrc control
-mult2_to_1_32 mult3(out2, datab,extad,alusrc);
+mult2_to_1_32 mult2(out2, datab,extad,alusrc);
 
-//mux with MemToReg control 
-mult2_to_1_32 mult4(out3, sum,dpack,memtoreg);
-
-//mux with(blezal&&R[rs]<=0)
-mul2_to_1_32 mult5(); // it will be implemented for blezal 
+//mux with MemToReg control
+mult2_to_1_32 mult3(out3, sum,dpack,memtoreg);
 
 //mux with (Branch&ALUZero) control
-mult2_to_1_32 mult6(out4, adder1out,adder2out,pcsrc);
-// mux with (jalpc) control added by Tolga
-mul2_to_1_32 mult7(out5,out4,adder1out,jalpc);
-// mux with (balv) control added by Tolga
-mul2_to_1_32 mult8 (); // it will be implemented for balv
-
-// mux with (Brv) control added by Tolga
-mul2_to_1_32 mult9 (); // it will implemented for brv 
-
-// mux with select nandi // added by Tolga TODO:It will be implemented
-mul2_to_1_32 mul10() // it will be added for selecting zeroextend nandi according to nandi signal 
+mult2_to_1_32 mult4(out4, adder1out,adder2out,pcsrc);
 
 // load pc
 always @(negedge clk)
+#40
 pc=out4;
+
 
 // alu, adder and control logic connections
 
@@ -116,9 +112,9 @@ adder add1(pc,32'h4,adder1out);
 //adder which adds PC+4 and 2 shifted sign-extend result
 adder add2(adder1out,sextad,adder2out);
 
-//Control unit TODO:jalpc eklencek
+//Control unit
 control cont(instruc[31:26],regdest,alusrc,memtoreg,regwrite,memread,memwrite,branch,
-aluop1,aluop0,jalpc);
+aluop1,aluop0);
 
 //Sign extend unit
 signext sext(instruc[15:0],extad);
@@ -130,7 +126,7 @@ alucont acont(aluop1,aluop0,instruc[3],instruc[2], instruc[1], instruc[0] ,gout)
 shift shift2(sextad,extad);
 
 //AND gate
-assign pcsrc=(branch && zout) || jalpc; // added by Tolga
+assign pcsrc=branch && zout; 
 
 //initialize datamemory,instruction memory and registers
 //read initial data from files given in hex
