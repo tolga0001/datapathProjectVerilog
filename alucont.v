@@ -4,8 +4,8 @@ output [2:0] gout;
 reg [2:0] gout;
 always @(aluop1 or aluop0 or f3 or f2 or f1 or f0)
 begin
-if(~(aluop1|aluop0))  gout=3'b010;
-if(aluop0)gout=3'b110;
+if(~(aluop1|aluop0))  gout=3'b010; //if not r format-->add for load or store 
+if(aluop0)gout=3'b110; //
 if(aluop1)//R-type
 begin
 	if (~(f3|f2|f1|f0))gout=3'b010; 	//function code=0000,ALU control=010 (add)
