@@ -1,4 +1,4 @@
 add $t0, $t1, $t2
-brv $t3
+balv 12
 add $t4, $t6, $t7
 add $t5, $t6, $t7
