@@ -37,7 +37,12 @@ outbrvmux,
 outjalpcmux,
 nandiresult,
 zeroextimm,
-outnandimux;
+outnandimux,
+outjmxoraddress,
+outjmxormux,
+jmxorxor,
+shifteddpack;
+
 
 
 wire [27:0]shiftedjump28; //  add two bit to the end of bits from 26 to 28
@@ -48,7 +53,7 @@ inst25_21,	//25-21 bits of instruction
 inst20_16,	//20-16 bits of instruction
 inst15_11,	//15-11 bits of instruction
 out1,		//Write data input of Register File
-outbalvregdst;
+outregdst;
 
 wire [15:0] inst15_0;	//15-0 bits of instruction
 
@@ -65,10 +70,11 @@ wire zout,	//Zero output of ALU
 pcsrc,	//Output of AND gate with Branch and ZeroOut inputs
 blezaland, // blezaland added by tolga for test time=>14.16
 
+
  // default r typelarda güncellencek, default ı typelarda güncellencek+nandi,   
 //Control signals
 
-regdest,alusrc,memtoreg,regwrite,memread,memwrite,branch,aluop1,aluop0,blezalsig,balvsig,brvsig,jalpcsig,nandisig,status_write_sig;; // added by Tolga for test case time
+regdest,alusrc,memtoreg,regwrite,memread,memwrite,branch,aluop1,aluop0,blezalsig,balvsig,brvsig,jalpcsig,jmxorsig,nandisig,status_write_sig;; // added by Tolga for test case time
 
 //32-size register file (32 bit(1 word) for each register)
 reg [31:0] registerfile[0:31];
@@ -109,10 +115,10 @@ assign functcode=instruc[5:0];
 assign dataa=registerfile[inst25_21];//Read register 1
 assign datab=registerfile[inst20_16];//Read register 2
 always @(posedge clk)
- registerfile[outbalvregdst]= regwrite ? outnandimux:registerfile[outbalvregdst];//Write data to register
+ registerfile[outregdst]= regwrite ? outnandimux:registerfile[outregdst];//Write data to register
 
 //read data from memory, sum stores address
-assign dpack={datmem[sum[5:0]],datmem[sum[5:0]+1],datmem[sum[5:0]+2],datmem[sum[5:0]+3]};
+assign dpack={datmem[outjmxoraddress],datmem[outjmxoraddress+1],datmem[outjmxoraddress+2],datmem[outjmxoraddress+3]};
 
 
 shift2jump shift2jump(shiftedjump28,inst25_0);//TODO check bit if 28 bits or not!!!
@@ -148,13 +154,12 @@ mult2_to_1_32 blezalmux (outblezalmux, adder1out, adder2out, (blezaland|pcsrc));
 mult2_to_1_32 jalpcmux (outjalpcmux, outbrvmux, adder2out, jalpcsig);//changed jalpc to jalpcsig
 
 
-//registeri updatelicek veri seçiliyor
-mult2_to_1_32 combineddatawritemux(outcombinedmux, out3, adder1out, (blezaland | ((statusregister[2]&balvsig)) | (jalpcsig)));
+
 
 mult2_to_1_32 balvmux (outbalvmux, outblezalmux, shiftedjump32, ((statusregister[0])&balvsig)); // it will be implemented for balv
 
 // mux with control balvsig (for selecting 31. reg as destination) added by Toprak output not yet connected!!
-mult2_to_1_5 balvregdst(outbalvregdst, out1, 5'b11111, balvsig);
+mult2_to_1_5 balvregdst(outregdst, out1, 5'b11111, (balvsig | jmxorsig));
 
 
 mult2_to_1_32 brvmux (outbrvmux, outbalvmux, registerfile[inst25_21], (brvsig&statusregister[2]));
@@ -162,6 +167,17 @@ mult2_to_1_32 brvmux (outbrvmux, outbalvmux, registerfile[inst25_21], (brvsig&st
 
 // mux with select nandi
 mult2_to_1_32 nandimux(outnandimux,outcombinedmux,nandiresult,nandisig); 
+
+// mux with control (jmxormux)
+
+// pcnin gideceği değeri seçiyor(jmxorsig 1 ise data memorydeki okunmuş değeri al değişse jalpcmuxdaki değer)
+mult2_to_1_32 jmxormux (outjmxormux, outjalpcmux, shifteddpack, jmxorsig);
+
+// mux with control (alu result and address connected by jmxorsig) added by Toprak (1) datamemin okuyacağı adresi seçiyor
+mult2_to_1_32 jmxoraddressmux(outjmxoraddress, sum, jmxorxor, jmxorsig);
+
+//registeri updatelicek veri seçiliyor
+mult2_to_1_32 combineddatawritemux(outcombinedmux, out3, adder1out, (blezaland | ((statusregister[2]&balvsig)) | jalpcsig | jmxorsig )); //(2)
 
 
 
@@ -174,7 +190,7 @@ mult2_to_1_32 nandimux(outnandimux,outcombinedmux,nandiresult,nandisig);
 // load pc
 always @(negedge clk)
 #40
-pc=outjalpcmux;
+pc=outjmxormux;
 
 
 // alu, adder and control logic connections
@@ -190,7 +206,7 @@ adder add2(adder1out,sextad,adder2out);
 
 //Control unit
 control cont(instruc[31:26],functcode,regdest,alusrc,memtoreg,regwrite,memread,memwrite,branch,
-aluop1,aluop0,blezalsig,balvsig,brvsig,jalpcsig,nandisig,status_write_sig);
+aluop1,aluop0,blezalsig,balvsig,brvsig,jalpcsig,nandisig,jmxorsig,status_write_sig);
 
 //Sign extend unit
 signext sext(instruc[15:0],extad);
@@ -207,6 +223,10 @@ assign pcsrc=branch && zout;
 // added for test case by Tolga time : 14.10
 assign blezaland=blezalsig&((dataa[31]==1 || dataa == 0) ? 1:0); //added blezaland here Toprak 2's complement???
 
+
+assign jmxorxor=dataa^datab; //added jmxorxor here Toprak, TODO check if ^ is xor
+
+assign shifteddpack = dpack << 2;
 
 
 //initialize datamemory,instruction memory and registers
