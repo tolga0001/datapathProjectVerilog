@@ -94,9 +94,9 @@ datmem[sum[4:0]]=datab[31:24];
 //datmem[outjmxoraddress[4:0]]=datab[31:24];
 end
 
-always @(posedge clk) begin
-    statusregister <= alu1.status;
- end   
+//always @(posedge clk) begin
+//    statusregister <= alu1.status;
+//end   
 
 //instruction memory
 //4-byte instruction
