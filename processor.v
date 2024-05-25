@@ -6,9 +6,11 @@
 `include "adder.v"
 `include "control.v"
 `include "signext.v"
+`include "zeroext.v"
 `include "alucont.v"
 `include "shift.v"
 `include "shift2jump.v"
+
 
 module processor;
 reg [31:0] pc; //32-bit prograom counter
@@ -31,7 +33,11 @@ outblezalmux, // added for test by Tolga time 14.05
 outbalvmux, // output of outbalvmux added by Toprak  added for test by Tolga time 16.18
 outcombinedmux, // added for test by Tolga time 14.06
 shiftedjump32,
-outbrvmux;
+outbrvmux,
+outjalpcmux,
+nandiresult,
+zeroextimm,
+outnandimux;
 
 
 wire [27:0]shiftedjump28; //  add two bit to the end of bits from 26 to 28
@@ -62,7 +68,7 @@ blezaland, // blezaland added by tolga for test time=>14.16
  // default r typelarda güncellencek, default ı typelarda güncellencek+nandi,   
 //Control signals
 
-regdest,alusrc,memtoreg,regwrite,memread,memwrite,branch,aluop1,aluop0,blezalsig,balvsig,brvsig,status_write_sig;; // added by Tolga for test case time
+regdest,alusrc,memtoreg,regwrite,memread,memwrite,branch,aluop1,aluop0,blezalsig,balvsig,brvsig,jalpcsig,nandisig,status_write_sig;; // added by Tolga for test case time
 
 //32-size register file (32 bit(1 word) for each register)
 reg [31:0] registerfile[0:31];
@@ -103,7 +109,7 @@ assign functcode=instruc[5:0];
 assign dataa=registerfile[inst25_21];//Read register 1
 assign datab=registerfile[inst20_16];//Read register 2
 always @(posedge clk)
- registerfile[outbalvregdst]= regwrite ? outcombinedmux:registerfile[outbalvregdst];//Write data to register
+ registerfile[outbalvregdst]= regwrite ? outnandimux:registerfile[outbalvregdst];//Write data to register
 
 //read data from memory, sum stores address
 assign dpack={datmem[sum[5:0]],datmem[sum[5:0]+1],datmem[sum[5:0]+2],datmem[sum[5:0]+3]};
@@ -111,7 +117,12 @@ assign dpack={datmem[sum[5:0]],datmem[sum[5:0]+1],datmem[sum[5:0]+2],datmem[sum[
 
 shift2jump shift2jump(shiftedjump28,inst25_0);//TODO check bit if 28 bits or not!!!
 
-assign shiftedjump32 = {4'b0000,shiftedjump28};  
+assign shiftedjump32 = {4'b0000,shiftedjump28}; 
+
+zeroext zext(instruc[15:0],zeroextimm);
+
+assign nandiresult = ~(dataa & zeroextimm); 
+
 
 //multiplexers
 //mux with RegDst control
@@ -131,7 +142,14 @@ mult2_to_1_32 mult3(out3, sum,dpack,memtoreg);
 // added test for blezal added by tolga time => 14.04
 mult2_to_1_32 blezalmux (outblezalmux, adder1out, adder2out, (blezaland|pcsrc));
 
-mult2_to_1_32 combineddatawritemux(outcombinedmux, out3, adder1out, (blezaland | (statusregister[2]&balvsig)));
+
+
+// pcyi updatelicek veriyi seçiyoruz
+mult2_to_1_32 jalpcmux (outjalpcmux, outbrvmux, adder2out, jalpcsig);//changed jalpc to jalpcsig
+
+
+//registeri updatelicek veri seçiliyor
+mult2_to_1_32 combineddatawritemux(outcombinedmux, out3, adder1out, (blezaland | ((statusregister[2]&balvsig)) | (jalpcsig)));
 
 mult2_to_1_32 balvmux (outbalvmux, outblezalmux, shiftedjump32, ((statusregister[0])&balvsig)); // it will be implemented for balv
 
@@ -139,13 +157,24 @@ mult2_to_1_32 balvmux (outbalvmux, outblezalmux, shiftedjump32, ((statusregister
 mult2_to_1_5 balvregdst(outbalvregdst, out1, 5'b11111, balvsig);
 
 
-mult2_to_1_32 brvmux (outbrvmux, outbalvmux, registerfile[inst25_21], (brvsig&statusregister[2])); 
+mult2_to_1_32 brvmux (outbrvmux, outbalvmux, registerfile[inst25_21], (brvsig&statusregister[2]));
+
+
+// mux with select nandi
+mult2_to_1_32 nandimux(outnandimux,outcombinedmux,nandiresult,nandisig); 
+
+
+
+
+
+
+
 
 
 // load pc
 always @(negedge clk)
 #40
-pc=outbrvmux;
+pc=outjalpcmux;
 
 
 // alu, adder and control logic connections
@@ -161,7 +190,7 @@ adder add2(adder1out,sextad,adder2out);
 
 //Control unit
 control cont(instruc[31:26],functcode,regdest,alusrc,memtoreg,regwrite,memread,memwrite,branch,
-aluop1,aluop0,blezalsig,balvsig,brvsig,status_write_sig);
+aluop1,aluop0,blezalsig,balvsig,brvsig,jalpcsig,nandisig,status_write_sig);
 
 //Sign extend unit
 signext sext(instruc[15:0],extad);
