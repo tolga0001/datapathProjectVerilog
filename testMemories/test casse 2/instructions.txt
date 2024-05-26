@@ -1,0 +1,7 @@
+add $t5, $t6, $t7
+brv $s0
+add $t2, $t3, $t4
+nandi $s2, $s3, 11
+blezal $s4, 2
+add $t2, $t3, $t4
+add $t5, $t6, $t7
