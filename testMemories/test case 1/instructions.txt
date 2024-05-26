@@ -1,0 +1,6 @@
+jmxor $t0, $t1
+add $t2, $t3, $t4
+add $t5, $t6, $t7
+balv 5
+add $t2, $t3, $t4
+jalpc $s1, 2
