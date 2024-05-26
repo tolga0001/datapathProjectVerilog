@@ -95,15 +95,24 @@ public class Main {
 
         String opcode = getOpcode(parts[0]);
         String rs = "00000";
-        String rt = "00000";
+        String rt;
+        if(parts[0].equals("blezal")){
+             rt = "11001";
+        }
+        else{
+            rt = "00000";
+        }
         String offset = "0000000000000000";
 
         if (parts[0].equals("lw") || parts[0].equals("sw")) {
             rt = getRegisterCode(parts[1]);
             offset = String.format("%16s", Integer.toBinaryString(Integer.parseInt(parts[2]))).replace(' ', '0');
             rs = getRegisterCode(parts[3]);
-        } else if (parts[0].equals("blezal") || parts[0].equals("jalpc")) {
+        } else if (parts[0].equals("blezal")) {
             rs = getRegisterCode(parts[1]);
+            offset = String.format("%16s", Integer.toBinaryString(Integer.parseInt(parts[2]))).replace(' ', '0');
+        } else if (parts[0].equals("jalpc")) {
+            rt = getRegisterCode(parts[1]);
             offset = String.format("%16s", Integer.toBinaryString(Integer.parseInt(parts[2]))).replace(' ', '0');
         } else {
             rt = getRegisterCode(parts[1]);
@@ -164,7 +173,7 @@ public class Main {
             case "brv":
                 return "010100";
             case "jmxor":
-                return "100110";  // Assuming the function code for jmxor is 100110
+                return "100010";  // Assuming the function code for jmxor is 100010
             default:
                 throw new IllegalArgumentException("Unsupported function code: " + mnemonic);
         }
